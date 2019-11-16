@@ -51,18 +51,17 @@ const resolverFunctions = {
         .createUser({
           ...user
         })
-        .then(res => {
-          return userCollection
-            .add(user)
-            .then(doc => ({
-              success: true,
-              users: { ...user, id: doc.id }
-            }))
-            .catch(err => ({
-              success: false,
-              message: `${err}`
-            }));
-        });
+        .then(authDoc => {
+          return userCollection.add({ ...user, uid: authDoc.id });
+        })
+        .then(doc => ({
+          success: true,
+          users: { ...user, id: doc.id }
+        }))
+        .catch(err => ({
+          success: false,
+          message: `${err}`
+        }));
     },
 
     editUser: (root, args) => {

@@ -5,9 +5,10 @@ const schema = gql`
   scalar Date
 
   type Query {
-    listUsers: multipleUsersResponse
+    listUsers(max: Int!, nextPageToken: String): multipleUsersResponse
     getUser(id: ID!): userResponse
     authToken(token: ID!): userResponse
+    loginUser(email: String!, password: String!): userResponse
   }
 
   type Mutation {
@@ -30,14 +31,11 @@ const schema = gql`
   }
 
   type User {
-    id: ID!
-    createdOn: Date!
-    email: String
-    password: String!
-    smsSend: Boolean
-    smsLastSend: Date
+    uid: ID!
+    email: String!
+    phoneNumber: String
+    displayName: String
     type: String!
-    displayName: String!
   }
 
   input EditUserInput {

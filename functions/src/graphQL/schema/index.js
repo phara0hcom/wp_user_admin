@@ -1,11 +1,13 @@
 const { gql } = require('apollo-server-express');
-
+// the different data objects that can be sen and returned
+// in queries and for mutations
 const schema = gql`
   scalar Date
 
   type Query {
-    users: usersResponse
+    listUsers: multipleUsersResponse
     getUser(id: ID!): userResponse
+    authToken(token: ID!): userResponse
   }
 
   type Mutation {
@@ -15,7 +17,7 @@ const schema = gql`
     sendSms(id: ID!): userResponse
   }
 
-  type usersResponse {
+  type multipleUsersResponse {
     success: Boolean!
     message: String
     users: [User]
@@ -49,14 +51,11 @@ const schema = gql`
   }
 
   input NewUser {
-    email: String
-    password: String
-    type: String!
-    displayName: String!
-    createdOn: Date!
+    email: String!
+    password: String!
+    type: String
+    displayName: String
     phoneNumber: String
-    smsSend: Boolean
-    smsLastSend: Date
   }
 `;
 

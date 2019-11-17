@@ -123,14 +123,23 @@ const resolverFunctions = {
         .catch(err => ({
           success: false,
           message: `${err}`
-        }))
+        })),
+    sendReset: (root, args) =>
+      admin
+        .auth()
+        .generatePasswordResetLink(args.email)
+        .then(link => {
+          console.log('link', link);
+          return { success: true };
+        })
+        .catch(err => ({ success: false, message: `${err}` }))
   },
   Mutation: {
     // To add a user you can do a mutation call and send the user object that will be saved in the auth database and also in the user database with the UID of the auth database
     addUser: (root, args) => {
       const user = { ...args.user };
       let type = user.type;
-      if(type !== 'user'|| type !== 'admin') type = 'user'
+      if (type !== 'user' || type !== 'admin') type = 'user';
       return admin
         .auth()
         .createUser({

@@ -9,6 +9,7 @@ const schema = gql`
     getUser(id: ID!): userResponse
     authToken(token: ID!): userResponse
     loginUser(email: String!, password: String!): userResponse
+    sendReset(email: String!): successRes
   }
 
   type Mutation {
@@ -28,6 +29,10 @@ const schema = gql`
     success: Boolean!
     message: String
     user: User
+  }
+
+  type successRes {
+    success: Boolean!
   }
 
   type User {

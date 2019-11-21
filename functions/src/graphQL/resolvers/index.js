@@ -3,30 +3,37 @@ import { badEnumValueMessage } from 'graphql/validation/rules/ValuesOfCorrectTyp
 
 admin.initializeApp();
 
-const getUserData = uid =>
-  admin
-    .auth()
-    .getUser(args.id)
-    //TODO: the data parsing is wrong
-    .then(userRec => {
-      authUser = userRec;
-      return userCollection.where('uid', '==', userRec.uid).get();
-    })
-    .then(userDb => {
-      let dbUser;
-      userDb.forEach(doc => {
-        const dataDoc = doc.data();
-        if (dataDoc.uid === authUser.uid) dbUser = dataDoc;
-      });
-      return {
-        success: true,
-        user: { ...authUser, ...dbUser }
-      };
-    })
-    .catch(err => ({
-      success: false,
-      message: `${err}`
-    }));
+const getAuthUser = uid => admin.auth().getUser(uid);
+
+const queryUserCollection = (column, compare, value) =>
+  userCollection.where(column, compare, value).get();
+
+const getUserData = uid => {
+  let user;
+  return (
+    getAuthUser(uid)
+      //TODO: the data parsing is wrong
+      .then(userRec => {
+        user = userRec;
+        return queryUserCollection('uid', '==', userRec.uid);
+      })
+      .then(userDb => {
+        let dbUser;
+        userDb.forEach(doc => {
+          const dataDoc = doc.data();
+          if (dataDoc.uid === user.uid) dbUser = dataDoc;
+        });
+        return {
+          success: true,
+          user: { ...user, ...dbUser }
+        };
+      })
+      .catch(err => ({
+        success: false,
+        message: `${err}`
+      }))
+  );
+};
 
 const userCollection = admin.firestore().collection('users');
 //resolver function for graphQL that looks up the request in the different databases
@@ -77,67 +84,60 @@ const resolverFunctions = {
     // get a single user out of the auth database and in the user database the date will be merged and send back
     getUser: (root, args) => {
       let authUser;
-      return (
-        admin
-          .auth()
-          .getUser(args.id)
-          //TODO: the data parsing is wrong
-          .then(userRec => {
-            authUser = userRec;
-            return userCollection.where('uid', '==', userRec.uid).get();
-          })
-          .then(userDb => {
-            let dbUser;
-            userDb.forEach(doc => {
-              const dataDoc = doc.data();
-              if (dataDoc.uid === authUser.uid) dbUser = dataDoc;
-            });
-            return {
-              success: true,
-              user: { ...authUser, ...dbUser }
-            };
-          })
-          .catch(err => ({
-            success: false,
-            message: `${err}`
-          }))
-      );
+      return getUserData(args.uid);
     },
     // each user will get a token on login here we can look up the token and return the user object
-    authToken: (root, args) =>
-      admin
+    authToken: (root, args) => {
+      return admin
         .auth()
         .verifyIdToken(args.token)
         .then(decodedToken => {
-          console.log('decodedToken', decodedToken);
           const uid = decodedToken.uid;
-          return admin.auth().getUser(uid);
-        })
-        .then(authUser => {
-          console.log('authUser', authUser);
-          return {
-            success: true,
-            user: { ...userRec, ...authUser, id: doc.id }
-          };
-        })
-        .catch(err => ({
-          success: false,
-          message: `${err}`
-        })),
+          return getUserData(uid);
+        });
+    },
     sendReset: (root, args) =>
       admin
         .auth()
         .generatePasswordResetLink(args.email)
         .then(link => {
-          console.log('link', link);
-          return { success: true };
+          return { success: true, message: `${link}` };
         })
-        .catch(err => ({ success: false, message: `${err}` }))
+        .catch(err => ({ success: false, message: `${err}` })),
+
+    queryUserDb: (root, { column, compare, value }) =>
+      queryUserCollection(column, compare, value)
+        .then(snapshot => {
+          if (snapshot.empty) {
+            return {
+              success: true,
+              message: 'empty',
+              users: []
+            };
+          }
+          const users = [];
+          snapshot.forEach(doc => {
+            users.push({ ...doc.data() });
+          });
+
+          return {
+            success: true,
+            users
+          };
+        })
+        .catch(err => ({
+          success: true,
+          message: `${err}`
+        }))
   },
   Mutation: {
     // To add a user you can do a mutation call and send the user object that will be saved in the auth database and also in the user database with the UID of the auth database
     addUser: (root, args) => {
       const user = { ...args.user };
+      const { phoneNumber } = args.user;
+      if (!phoneNumber || phoneNumber.length < 1) {
+        delete user.phoneNumber;
+      }
       let type = user.type;
       if (type !== 'user' || type !== 'admin') type = 'user';
       return admin
@@ -146,12 +146,16 @@ const resolverFunctions = {
           ...user
         })
         .then(authDoc => {
-          return userCollection.add({ ...user, uid: authDoc.id, type });
+          user.uid = authDoc.uid;
+          user.password = 'No password';
+          return userCollection.add({ ...user, uid: authDoc.uid, type });
         })
-        .then(doc => ({
-          success: true,
-          users: { ...user, id: doc.id }
-        }))
+        .then(() => {
+          return {
+            success: true,
+            user: { ...user }
+          };
+        })
         .catch(err => ({
           success: false,
           message: `${err}`
@@ -159,12 +163,48 @@ const resolverFunctions = {
     },
     // edit user depending on the field in both auth database and in the user database
     editUser: (root, args) => {
-      return userCollection
-        .doc(args.id)
-        .set({ ...args.data }, { merge: true })
-        .then(doc => ({
-          success: true,
-          users: { ...user, id: doc.id }
+      const user = { ...args.data };
+      return admin
+        .auth()
+        .updateUser(args.uid, { ...user })
+        .then(() => {
+          return queryUserCollection('uid', '==', args.uid);
+        })
+        .then(searchDocs => {
+          if (searchDocs.empty) {
+            return {
+              success: false,
+              message: 'user not found in user db'
+            };
+          }
+          let id;
+          searchDocs.forEach(doc => {
+            const data = doc.data();
+            if (data.uid === args.uid) {
+              id = doc.id;
+            }
+          });
+          user.uid = args.uid;
+          user.password = '';
+          return userCollection.doc(id).set({ ...user }, { merge: true });
+        })
+        .then(() => {
+          return {
+            success: true,
+            user: { ...user }
+          };
+        })
+        .catch(err => ({
+          success: false,
+          message: `${err}`
+        }));
+    },
+    deleteUser: (root, args) => {
+      return admin
+        .auth()
+        .deleteUser(args.uid)
+        .then(() => ({
+          success: true
         }))
         .catch(err => ({
           success: false,

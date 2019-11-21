@@ -6,7 +6,8 @@ const schema = gql`
 
   type Query {
     listUsers(max: Int!, nextPageToken: String): multipleUsersResponse
-    getUser(id: ID!): userResponse
+    getUser(uid: ID!): userResponse
+    queryUserDb(column: String, compare: String!, value: String!): multipleUsersResponse
     authToken(token: ID!): userResponse
     loginUser(email: String!, password: String!): userResponse
     sendReset(email: String!): successRes
@@ -14,9 +15,10 @@ const schema = gql`
 
   type Mutation {
     addUser(user: NewUser!): userResponse
-    editUser(id: ID!, data: EditUserInput!): userResponse
+    editUser(uid: ID!, data: EditUserInput!): userResponse
     resetPassword(id: ID!): userResponse
-    sendSms(id: ID!): userResponse
+    sendSms(uid: ID!): userResponse
+    deleteUser(uid: ID!): successRes
   }
 
   type multipleUsersResponse {
@@ -33,6 +35,7 @@ const schema = gql`
 
   type successRes {
     success: Boolean!
+    message: String
   }
 
   type User {

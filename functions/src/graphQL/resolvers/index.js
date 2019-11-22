@@ -210,6 +210,60 @@ const resolverFunctions = {
           success: false,
           message: `${err}`
         }));
+    },
+    signUp: (root, args) => {
+      const { id, email, password } = args;
+      return userCollection
+        .doc(id)
+        .get()
+        .then(doc => {
+          console.log({ doc });
+          if (!doc.exists) {
+            return {
+              success: false,
+              message: `the Id is not found`
+            };
+          } else {
+            const data = doc.data();
+            console.log({ data });
+            if (data.uid) {
+              return {
+                success: false,
+                message: `the Id has a account`
+              };
+            } else {
+              return admin.auth().createUser({
+                email,
+                password
+              });
+            }
+          }
+        })
+        .then(authDoc => {
+          const uid = authDoc.uid;
+          return userCollection.doc(id).set({ uid, email }, { merge: true });
+        })
+        .then(() => ({
+          success: true,
+          message: `Account made`
+        }))
+        .catch(err => ({
+          success: false,
+          message: `${err}`
+        }));
+    },
+    sendSms: (root, args) => {
+      const { phoneNumber } = args;
+      return userCollection
+        .add({ type: 'user', phoneNumber })
+        .then(doc => ({
+          success: true,
+          id: doc.id
+        }))
+        .catch(err => ({
+          success: false,
+          message: `${err}`
+        }));
     }
   }
 };

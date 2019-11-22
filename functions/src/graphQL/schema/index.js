@@ -17,14 +17,21 @@ const schema = gql`
     addUser(user: NewUser!): userResponse
     editUser(uid: ID!, data: EditUserInput!): userResponse
     resetPassword(id: ID!): userResponse
-    sendSms(uid: ID!): userResponse
+    sendSms(phoneNumber: String!): smsResponse
     deleteUser(uid: ID!): successRes
+    signUp(id: ID!, email: String!, password: String!): successRes
   }
 
   type multipleUsersResponse {
     success: Boolean!
     message: String
     users: [User]
+  }
+
+  type smsResponse {
+    success: Boolean!
+    message: String
+    id: ID
   }
 
   type userResponse {
